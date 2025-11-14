@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MTechno - Süreli Dosya Yükleme</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      padding-top: 40px;
+    }
+    h1 { color: #00d084; }
+    input, button {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+    }
+    button {
+      background-color: #00d084;
+      color: black;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    button:hover {
+      background-color: #03c477;
+    }
+    #status a {
+      color: #00d084;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin-top: 20px;
+      width: 80%;
+      max-width: 600px;
+    }
+    li {
+      background: #222;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      word-wrap: break-word;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    a {
+      color: #00d084;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .login-prompt {
+      text-align: center;
+      margin-top: 50px;
+    }
+    .login-prompt a {
+      color: #00d084;
+      font-weight: bold;
+    }
+    .user-info {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: #222;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .logout-btn {
+      background: #ff4757;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    .file-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .delete-btn {
+      background: #ff4757;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .hidden {
+      display: none;
+    }
+    .storage-info {
+      background: #333;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 10px 0;
+      text-align: center;
+      width: 80%;
+      max-width: 600px;
+    }
+    .storage-bar {
+      width: 100%;
+      height: 10px;
+      background: #555;
+      border-radius: 5px;
+      margin: 5px 0;
+      overflow: hidden;
+    }
+    .storage-used {
+      height: 100%;
+      background: #00d084;
+      border-radius: 5px;
+      transition: width 0.3s;
+    }
+    .subscription-status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .subscription-good {
+      background: #1e3a1e;
+      color: #00d084;
+      border: 1px solid #00d084;
+    }
+    .subscription-warning {
+      background: #3a2e1e;
+      color: #ffa502;
+      border: 1px solid #ffa502;
+    }
+    .subscription-critical {
+      background: #3a1e1e;
+      color: #ff4757;
+      border: 1px solid #ff4757;
+    }
+    .extend-btn {
+      background: #00d084;
+      color: black;
+      padding: 8px 15px;
+      font-size: 12px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .extend-btn:hover {
+      background: #03c477;
+      transform: scale(1.05);
+    }
+  </style>
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+</head>
+<body>
+  <!-- Kullanıcı Bilgisi -->
+  <div id="userInfo" class="user-info hidden">
+    <span id="userEmail"></span>
+    <button class="logout-btn" onclick="logout()">Çıkış</button>
+  </div>
+
+  <!-- Giriş Yapılmamışsa -->
+  <div id="loginPrompt" class="login-prompt">
+    <h1>🔐 Süreli Dosya Yükleme</h1>
+    <p>Dosya yüklemek için giriş yapmalısınız</p>
+    <a href="https://methehan.github.io/login/">Giriş Yap</a>
+  </div>
+
+  <!-- Giriş Yapılmışsa -->
+  <div id="fileUploadSection" class="hidden">
+    <h1>📂 MTechno - Süreli Dosya Yükleme</h1>
+    <p>Hoş geldin, <span id="welcomeUserName"></span>!</p>
+
+    <!-- Depolama ve Abonelik Bilgisi -->
+    <div class="storage-info">
+      <div>📊 Kullanılan Depolama: <span id="storageUsed">0MB</span> / 100MB</div>
+      <div class="storage-bar">
+        <div class="storage-used" id="storageBar"></div>
+      </div>
+      <div id="subscriptionInfo" class="subscription-status">
+        <!-- Abonelik bilgisi buraya gelecek -->
+      </div>
+    </div>
+
+    <input type="file" id="fileInput" />
+    <button id="uploadBtn">Dosya Yükle</button>
+
+    <p id="status"></p>
+
+    <h2>🗂️ Yüklediğin Dosyalar</h2>
+    <ul id="fileList"></ul>
+  </div>
+
+  <script>
+    // Firebase konfigürasyonu
+    const firebaseConfig = {
+      apiKey: "AIzaSyDXbv4aK-PyVvfIcsaDK_wGK2taL7vqwmg",
+      authDomain: "login-77be0.firebaseapp.com",
+      projectId: "login-77be0",
+      storageBucket: "login-77be0.firebasestorage.app",
+      messagingSenderId: "631209373102",
+      appId: "1:631209373102:web:11ba283b57b8d12fc02c3f"
+    };
+
+    // Firebase'i başlat
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    // Sabitler
+    const MAX_USER_STORAGE = 100 * 1024 * 1024; // 100MB kişi başı
+    const SUBSCRIPTION_DAYS = 30; // 30 gün abonelik
+
+    // DOM elementleri
+    const loginPrompt = document.getElementById('loginPrompt');
+    const fileUploadSection = document.getElementById('fileUploadSection');
+    const userInfo = document.getElementById('userInfo');
+    const userEmail = document.getElementById('userEmail');
+    const welcomeUserName = document.getElementById('welcomeUserName');
+    const status = document.getElementById('status');
+    const fileList = document.getElementById('fileList');
+    const storageUsed = document.getElementById('storageUsed');
+    const storageBar = document.getElementById('storageBar');
+    const subscriptionInfo = document.getElementById('subscriptionInfo');
+
+    // Kullanıcı durumunu kontrol et
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        // Kullanıcı giriş yapmış
+        sessionStorage.setItem('userLoggedIn', 'true');
+        sessionStorage.setItem('userEmail', user.email);
+        sessionStorage.setItem('userUID', user.uid);
+        
+        // Kullanıcı bilgilerini al
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        const userData = userDoc.data();
+        
+        // Arayüzü güncelle
+        loginPrompt.classList.add('hidden');
+        fileUploadSection.classList.remove('hidden');
+        userInfo.classList.remove('hidden');
+        
+        userEmail.textContent = user.email;
+        welcomeUserName.textContent = userData?.name || user.email;
+        
+        // Abonelik kontrolü yap
+        await checkSubscription();
+        
+        // Dosyaları yükle ve depolama bilgisini göster
+        await loadFiles();
+        await updateStorageInfo();
+
+      } else {
+        // Kullanıcı giriş yapmamış
+        sessionStorage.removeItem('userLoggedIn');
+        sessionStorage.removeItem('userEmail');
+        sessionStorage.removeItem('userUID');
+        
+        loginPrompt.classList.remove('hidden');
+        fileUploadSection.classList.add('hidden');
+        userInfo.classList.add('hidden');
+      }
+    });
+
+    // Abonelik kontrolü - MODAL YOK!
+    async function checkSubscription() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userDoc = await db.collection('users').doc(user.uid).get();
+      const userData = userDoc.data();
+
+      let subscriptionEnd = userData?.subscriptionEnd;
+      
+      // İlk defa giriş yapıyorsa abonelik başlat
+      if (!subscriptionEnd) {
+        subscriptionEnd = new Date();
+        subscriptionEnd.setDate(subscriptionEnd.getDate() + SUBSCRIPTION_DAYS);
+        
+        await db.collection('users').doc(user.uid).update({
+          subscriptionEnd: subscriptionEnd
+        });
+        
+        // Yeni kullanıcıya hoş geldin mesajı
+        status.textContent = "🎉 Hoş geldiniz! 30 günlük ücretsiz aboneliğiniz başladı.";
+      } else {
+        subscriptionEnd = new Date(subscriptionEnd.seconds * 1000);
+      }
+
+      // Abonelik durumunu kontrol et
+      const today = new Date();
+      const timeDiff = subscriptionEnd - today;
+      const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+      // SADECE DASHBOARD'DA GÖSTER - MODAL YOK!
+      updateSubscriptionDisplay(daysLeft);
+
+      // Abonelik bitmişse dosyaları sil
+      if (daysLeft <= 0) {
+        await deleteExpiredFiles();
+      }
+    }
+
+    // Sadece dashboard'da göster - MODAL YOK!
+    function updateSubscriptionDisplay(daysLeft) {
+      if (daysLeft > 10) {
+        subscriptionInfo.className = 'subscription-status subscription-good';
+        subscriptionInfo.innerHTML = `✅ Aboneliğiniz <strong>${daysLeft}</strong> gün daha geçerli`;
+      } else if (daysLeft > 3) {
+        subscriptionInfo.className = 'subscription-status subscription-warning';
+        subscriptionInfo.innerHTML = `⚠️ Aboneliğiniz <strong>${daysLeft}</strong> gün sonra bitiyor`;
+      } else if (daysLeft > 0) {
+        subscriptionInfo.className = 'subscription-status subscription-critical';
+        subscriptionInfo.innerHTML = `
+          🚨 Aboneliğiniz <strong>${daysLeft}</strong> gün sonra bitiyor!
+          <br>
+          <button class="extend-btn" onclick="extendSubscription()">
+            🔄 Süreyi 1 Ay Uzat
+          </button>
+        `;
+      } else {
+        subscriptionInfo.className = 'subscription-status subscription-critical';
+        subscriptionInfo.innerHTML = `❌ Aboneliğiniz sona erdi. Yeni dosya yükleyemezsiniz.`;
+      }
+    }
+
+    // Aboneliği uzat
+    async function extendSubscription() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const newEndDate = new Date();
+      newEndDate.setDate(newEndDate.getDate() + SUBSCRIPTION_DAYS);
+
+      await db.collection('users').doc(user.uid).update({
+        subscriptionEnd: newEndDate
+      });
+
+      status.textContent = "✅ Aboneliğiniz 1 ay uzatıldı!";
+      await checkSubscription(); // Display'i güncelle
+    }
+
+    // Süresi dolan dosyaları sil
+    async function deleteExpiredFiles() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const snapshot = await db.collection('userFiles')
+        .where('userId', '==', user.uid)
+        .get();
+
+      const deletePromises = [];
+      snapshot.forEach(doc => {
+        const fileData = doc.data();
+        deletePromises.push(
+          storage.ref(fileData.filePath).delete()
+            .then(() => doc.ref.delete())
+        );
+      });
+
+      await Promise.all(deletePromises);
+      status.textContent = "ℹ️ Süresi dolan dosyalarınız temizlendi.";
+      await loadFiles();
+      await updateStorageInfo();
+    }
+
+    // Türkçe karakterleri temizle
+    function sanitizeFileName(name) {
+      return name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[çÇğĞıİöÖşŞüÜ]/g, c =>
+          ({ ç: "c", Ç: "C", ğ: "g", Ğ: "G", ı: "i", İ: "I", ö: "o", Ö: "O", ş: "s", Ş: "S", ü: "u", Ü: "U" }[c])
+        )
+        .replace(/\s+/g, "_")
+        .replace(/[^a-zA-Z0-9_.-]/g, "");
+    }
+
+    // Kullanıcının toplam depolama kullanımını hesapla
+    async function getUserStorageUsage() {
+      const user = auth.currentUser;
+      if (!user) return 0;
+
+      const snapshot = await db.collection('userFiles')
+        .where('userId', '==', user.uid)
+        .get();
+
+      let totalSize = 0;
+      snapshot.forEach(doc => {
+        totalSize += doc.data().size || 0;
+      });
+
+      return totalSize;
+    }
+
+    // Depolama bilgisini güncelle
+    async function updateStorageInfo() {
+      const usedBytes = await getUserStorageUsage();
+      const usedMB = (usedBytes / 1024 / 1024).toFixed(1);
+      const percentage = (usedBytes / MAX_USER_STORAGE) * 100;
+
+      storageUsed.textContent = `${usedMB}MB`;
+      storageBar.style.width = `${Math.min(percentage, 100)}%`;
+
+      // Renk değişimi
+      if (percentage > 90) {
+        storageBar.style.background = '#ff4757';
+      } else if (percentage > 70) {
+        storageBar.style.background = '#ffa502';
+      } else {
+        storageBar.style.background = '#00d084';
+      }
+    }
+
+    // Dosya yükleme - DÜZELTİLMİŞ VERSİYON
+    document.getElementById("uploadBtn").addEventListener("click", async () => {
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        status.textContent = "⚠️ Lütfen bir dosya seçin.";
+        return;
+      }
+
+      // Abonelik kontrolü
+      const user = auth.currentUser;
+      const userDoc = await db.collection('users').doc(user.uid).get();
+      const subscriptionEnd = new Date(userDoc.data().subscriptionEnd.seconds * 1000);
+      const today = new Date();
+      
+      if (subscriptionEnd <= today) {
+        status.textContent = "❌ Aboneliğiniz sona erdi. Lütfen süreyi uzatın.";
+        return;
+      }
+
+      // Mevcut depolama kullanımını kontrol et
+      const currentUsage = await getUserStorageUsage();
+      const remainingSpace = MAX_USER_STORAGE - currentUsage;
+
+      if (file.size > remainingSpace) {
+        const remainingMB = (remainingSpace / 1024 / 1024).toFixed(1);
+        status.textContent = `❌ Yetersiz depolama alanı! Kalan: ${remainingMB}MB`;
+        return;
+      }
+
+      status.textContent = "⏳ Yükleniyor...";
+      const uploadBtn = document.getElementById("uploadBtn");
+      uploadBtn.disabled = true;
+
+      const safeName = sanitizeFileName(file.name);
+      const filePath = `users/${user.uid}/${safeName}`;
+
+      try {
+        console.log("Dosya yükleniyor:", file.name, "Boyut:", file.size);
+
+        // ✅ DÜZELTME: Firebase Storage'a yükleme
+        const storageRef = storage.ref(filePath);
+        const uploadTask = storageRef.put(file);
+
+        // Upload progress'ini dinle
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            // Progress güncellemesi
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            status.textContent = `⏳ Yükleniyor... %${Math.round(progress)}`;
+          },
+          (error) => {
+            // Hata durumu
+            console.error('Upload hatası:', error);
+            status.textContent = `❌ Yükleme hatası: ${error.message}`;
+            uploadBtn.disabled = false;
+          },
+          async () => {
+            // Başarılı yükleme
+            try {
+              const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+              console.log("Dosya yüklendi, URL:", downloadURL);
+
+              // Dosya süresini abonelik bitişine ayarla
+              const expiryDate = new Date(subscriptionEnd);
+
+              // Firestore'a dosya bilgisini kaydet
+              await db.collection('userFiles').doc().set({
+                userId: user.uid,
+                fileName: safeName,
+                originalName: file.name,
+                filePath: filePath,
+                downloadURL: downloadURL,
+                size: file.size,
+                uploadedAt: new Date(),
+                expiryDate: expiryDate,
+                contentType: file.type
+              });
+
+              status.textContent = "✅ Dosya başarıyla yüklendi!";
+              fileInput.value = ''; // Input'u temizle
+              await loadFiles(); // Listeyi yenile
+              await updateStorageInfo(); // Depolama bilgisini güncelle
+
+            } catch (dbError) {
+              console.error('Firestore hatası:', dbError);
+              status.textContent = "❌ Dosya bilgisi kaydedilirken hata oluştu.";
+            } finally {
+              uploadBtn.disabled = false;
+            }
+          }
+        );
+
+      } catch (error) {
+        console.error('Genel yükleme hatası:', error);
+        status.textContent = "❌ Yükleme hatası: " + error.message;
+        uploadBtn.disabled = false;
+      }
+    });
+
+    // Dosyaları listele - DÜZELTİLMİŞ VERSİYON
+    async function loadFiles() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      fileList.innerHTML = "⏳ Dosyalar yükleniyor...";
+
+      try {
+        // Kullanıcının dosyalarını Firestore'dan al
+        const snapshot = await db.collection('userFiles')
+          .where('userId', '==', user.uid)
+          .orderBy('uploadedAt', 'desc')
+          .get();
+
+        if (snapshot.empty) {
+          fileList.innerHTML = "<li>Henüz dosya yüklenmemiş.</li>";
+          return;
+        }
+
+        fileList.innerHTML = "";
+        
+        // Her dosya için download URL'ini kontrol et
+        for (const doc of snapshot.docs) {
+          const fileData = doc.data();
+          const li = document.createElement("li");
+          
+          const fileSize = (fileData.size / 1024 / 1024).toFixed(2);
+          const uploadDate = new Date(fileData.uploadedAt.seconds * 1000).toLocaleDateString('tr-TR');
+          
+          // Kalan günü hesapla
+          const expiryDate = new Date(fileData.expiryDate.seconds * 1000);
+          const today = new Date();
+          const daysLeft = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+          
+          const daysLeftText = daysLeft > 0 ? `${daysLeft} gün kaldı` : 'Süresi doldu';
+          const daysLeftClass = daysLeft > 7 ? 'subscription-good' : 
+                               daysLeft > 3 ? 'subscription-warning' : 'subscription-critical';
+          
+          li.innerHTML = `
+            <div>
+              <a href="${fileData.downloadURL}" target="_blank" download="${fileData.originalName}">
+                ${fileData.originalName}
+              </a>
+              <br>
+              <small>${fileSize} MB - ${uploadDate}</small>
+              <br>
+              <small class="${daysLeftClass}">⏳ ${daysLeftText}</small>
+            </div>
+            <div class="file-actions">
+              <button class="delete-btn" onclick="deleteFile('${doc.id}', '${fileData.filePath}')">Sil</button>
+            </div>
+          `;
+          fileList.appendChild(li);
+        }
+
+      } catch (error) {
+        console.error('Listeleme hatası:', error);
+        fileList.innerHTML = "❌ Dosyalar yüklenirken hata oluştu: " + error.message;
+      }
+    }
+
+    // Dosya silme
+    async function deleteFile(docId, filePath) {
+      if (!confirm('Bu dosyayı silmek istediğinizden emin misiniz?')) {
+        return;
+      }
+
+      try {
+        // Firestore'dan sil
+        await db.collection('userFiles').doc(docId).delete();
+        
+        // Storage'dan sil
+        await storage.ref(filePath).delete();
+        
+        status.textContent = "✅ Dosya silindi.";
+        await loadFiles(); // Listeyi yenile
+        await updateStorageInfo(); // Depolama bilgisini güncelle
+        
+      } catch (error) {
+        console.error('Silme hatası:', error);
+        status.textContent = "❌ Dosya silinirken hata oluştu: " + error.message;
+      }
+    }
+
+    // Çıkış yap
+    function logout() {
+      auth.signOut();
+    }
+
+    // Sayfa yüklendiğinde session kontrolü
+    document.addEventListener('DOMContentLoaded', function() {
+      if (sessionStorage.getItem('userLoggedIn') === 'true') {
+        console.log('Session mevcut, Firebase state bekleniyor...');
+      }
+    });
+  </script>
+</body>
+</html>
